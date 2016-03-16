@@ -42,7 +42,7 @@ var flagHelp *bool
 // requirements.
 type Cmd interface {
 	Flags(*flag.FlagSet) *flag.FlagSet
-	Run(args []string)
+	Run(args []string) error
 }
 
 type cmdCont struct {
@@ -146,20 +146,20 @@ func Parse() {
 
 // Runs the subcommand's runnable. If there is no subcommand
 // registered, it silently returns.
-func Run() {
+func Run() error {
 	if matchingCmd != nil {
 		if *flagHelp {
 			subcommandUsage(matchingCmd)
-			return
 		}
-		matchingCmd.command.Run(args)
+		return matchingCmd.command.Run(args)
 	}
+	return nil
 }
 
 // Parses flags and run's matching subcommand's runnable.
-func ParseAndRun() {
+func ParseAndRun() error {
 	Parse()
-	Run()
+	return Run()
 }
 
 // Returns the total number of globally registered flags.
