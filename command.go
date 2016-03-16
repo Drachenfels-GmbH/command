@@ -46,6 +46,16 @@ type Cmd interface {
 	Run(args []string) error
 }
 
+// A func that implements the Cmd interface
+type CmdFunc func(args []string) error
+
+func (s CmdFunc) Flags(fs *flag.FlagSet) {
+}
+
+func (s CmdFunc) Run(args []string) error {
+	  return s(args)
+	}
+
 type CmdCont struct {
 	Cmd
 	Name          string
