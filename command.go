@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"errors"
 )
 
 // A map of all of the registered sub-commands.
@@ -100,6 +101,8 @@ func subcommandUsage(cont *CmdCont) {
 	}
 }
 
+var ErrUsage = errors.New("Invalid usage.")
+
 // Parses the flags and leftover arguments to match them with a
 // sub-command. Evaluate all of the global flags and register
 // sub-command handlers before calling it. Sub-command handler's
@@ -107,26 +110,29 @@ func subcommandUsage(cont *CmdCont) {
 // A usage with flag defaults will be printed if provided arguments
 // don't match the configuration.
 // Global flags are accessible once Parse executes.
-func Parse() {
+func Parse() error {
 	flag.Parse()
 	// if there are no subcommands registered,
 	// return immediately
 	if len(Cmds) < 1 {
-		return
+		return ErrUsage
 	}
 
 	flag.Usage = Usage
 	if flag.NArg() < 1 {
 		flag.Usage()
-		os.Exit(1)
+		return ErrUsage
 	}
 
 	name := flag.Arg(0)
 	if cont, ok := Cmds[name]; ok {
-		fs := flag.NewFlagSet(name, flag.ExitOnError)
+		fs := flag.NewFlagSet(name, flag.ContinueOnError)
 		cont.Flags(fs)
 		flagHelp = fs.Bool("h", false, "")
-		fs.Parse(flag.Args()[1:])
+		err := fs.Parse(flag.Args()[1:])
+		if err != nil {
+			return err
+		}
 		args = fs.Args()
 		matchingCmd = cont
 
@@ -140,12 +146,12 @@ func Parse() {
 		})
 		if len(flagMap) > 0 {
 			subcommandUsage(matchingCmd)
-			os.Exit(1)
+			return ErrUsage
 		}
 	} else {
 		flag.Usage()
-		os.Exit(1)
 	}
+	return nil
 }
 
 // Runs the subcommand's runnable. If there is no subcommand
@@ -162,7 +168,10 @@ func Run() error {
 
 // Parses flags and run's matching subcommand's runnable.
 func ParseAndRun() error {
-	Parse()
+	err := Parse()
+	if err != nil {
+		return err
+	}
 	return Run()
 }
 
