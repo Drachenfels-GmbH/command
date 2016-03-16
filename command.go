@@ -41,7 +41,7 @@ var flagHelp *bool
 // flags and runnable to run once arguments match the subcommand
 // requirements.
 type Cmd interface {
-	Flags(*flag.FlagSet) *flag.FlagSet
+	Flags(*flag.FlagSet)
 	Run(args []string) error
 }
 
@@ -77,8 +77,8 @@ func Usage() {
 
 	fmt.Fprintf(os.Stderr, "Usage: %s <command>\n\n", program)
 	fmt.Fprintf(os.Stderr, "where <command> is one of:\n")
-	for Name, cont := range Cmds {
-		fmt.Fprintf(os.Stderr, "  %-15s %s\n", Name, cont.Desc)
+	for name, cont := range Cmds {
+		fmt.Fprintf(os.Stderr, "  %-15s %s\n", name, cont.Desc)
 	}
 
 	if numOfGlobalFlags() > 0 {
@@ -91,7 +91,8 @@ func Usage() {
 func subcommandUsage(cont *CmdCont) {
 	fmt.Fprintf(os.Stderr, "Usage of %s %s:\n", os.Args[0], cont.Name)
 	// should only output sub command flags, ignore h flag.
-	fs := matchingCmd.Flags(flag.NewFlagSet(cont.Name, flag.ContinueOnError))
+	fs := flag.NewFlagSet(cont.Name, flag.ContinueOnError)
+	matchingCmd.Flags(fs)
 	fs.PrintDefaults()
 	if len(cont.RequiredFlags) > 0 {
 		fmt.Fprintf(os.Stderr, "\nrequired flags:\n")
@@ -120,9 +121,10 @@ func Parse() {
 		os.Exit(1)
 	}
 
-	Name := flag.Arg(0)
-	if cont, ok := Cmds[Name]; ok {
-		fs := cont.Flags(flag.NewFlagSet(Name, flag.ExitOnError))
+	name := flag.Arg(0)
+	if cont, ok := Cmds[name]; ok {
+		fs := flag.NewFlagSet(name, flag.ExitOnError)
+		cont.Flags(fs)
 		flagHelp = fs.Bool("h", false, "")
 		fs.Parse(flag.Args()[1:])
 		args = fs.Args()

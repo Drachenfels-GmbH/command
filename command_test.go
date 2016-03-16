@@ -150,9 +150,8 @@ type testCmd1 struct {
 }
 
 // Defines flags for the sub command.
-func (cmd *testCmd1) Flags(fs *flag.FlagSet) *flag.FlagSet {
+func (cmd *testCmd1) Flags(fs *flag.FlagSet) {
 	cmd.flag1 = fs.Bool("flag1", false, "Description about flag1")
-	return fs
 }
 
 // Sets the run flag.
@@ -169,9 +168,8 @@ type testCmd2 struct {
 }
 
 // Defines flags for the sub command.
-func (cmd *testCmd2) Flags(fs *flag.FlagSet) *flag.FlagSet {
+func (cmd *testCmd2) Flags(fs *flag.FlagSet) {
 	cmd.flag2 = fs.Bool("flag2", false, "Description about flag2")
-	return fs
 }
 
 // Sets the run flag.
