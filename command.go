@@ -99,7 +99,7 @@ func Usage() {
 	fmt.Fprintf(os.Stderr, "\n%s <command> -h for subcommand help\n", program)
 }
 
-func subcommandUsage(cont *CmdCont) {
+func CmdUsage(cont *CmdCont) {
 	fmt.Fprintf(os.Stderr, "Usage of %s %s:\n", os.Args[0], cont.Name)
 	// should only output sub command flags, ignore h flag.
 	fs := flag.NewFlagSet(cont.Name, flag.ContinueOnError)
@@ -155,7 +155,7 @@ func Parse() error {
 			delete(flagMap, f.Name)
 		})
 		if len(flagMap) > 0 {
-			subcommandUsage(matchingCmd)
+			CmdUsage(matchingCmd)
 			return ErrUsage
 		}
 	} else {
@@ -169,7 +169,7 @@ func Parse() error {
 func Run() error {
 	if matchingCmd != nil {
 		if *flagHelp {
-			subcommandUsage(matchingCmd)
+			CmdUsage(matchingCmd)
 		}
 		return matchingCmd.Run(args)
 	}
