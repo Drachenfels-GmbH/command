@@ -111,7 +111,10 @@ func CmdUsage(cont *CmdCont) {
 	}
 }
 
-var ErrUsage = errors.New("Invalid usage.")
+var (
+	ErrUsage = errors.New("Invalid usage.")
+	ErrExist = errors.New("Command does not exist.")
+)
 
 // Parses the flags and leftover arguments to match them with a
 // sub-command. Evaluate all of the global flags and register
@@ -172,8 +175,9 @@ func Run() error {
 			CmdUsage(matchingCmd)
 		}
 		return matchingCmd.Run(args)
+	} else {
+		return ErrExist
 	}
-	return nil
 }
 
 // Parses flags and run's matching subcommand's runnable.
