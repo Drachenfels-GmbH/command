@@ -63,6 +63,12 @@ type CmdCont struct {
 	RequiredFlags []string
 }
 
+var Args []string
+
+func init() {
+	Args = os.Args[:]
+}
+
 // Registers a Cmd for the provided sub-command Name. E.g. Name is the
 // `status` in `git status`.
 func On(name, description string, command Cmd, requiredFlags []string) (c *CmdCont) {
@@ -78,7 +84,7 @@ func On(name, description string, command Cmd, requiredFlags []string) (c *CmdCo
 
 // Prints the usage.
 func Usage() {
-	program := os.Args[0]
+	program := Args[0]
 	if len(Cmds) == 0 {
 		// no subcommands
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", program)
@@ -100,7 +106,7 @@ func Usage() {
 }
 
 func CmdUsage(cont *CmdCont) {
-	fmt.Fprintf(os.Stderr, "Usage of %s %s:\n", os.Args[0], cont.Name)
+	fmt.Fprintf(os.Stderr, "Usage of %s %s:\n", Args[0], cont.Name)
 	// should only output sub command flags, ignore h flag.
 	fs := flag.NewFlagSet(cont.Name, flag.ContinueOnError)
 	matchingCmd.Flags(fs)
