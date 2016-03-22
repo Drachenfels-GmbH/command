@@ -1,35 +1,20 @@
 # command
 
-[![Build Status](https://travis-ci.org/rakyll/command.png?branch=master)](https://travis-ci.org/rakyll/command)
-
 command is a tiny package that helps you to add cli subcommands to your Go program with no effort, and prints a pretty guide if needed.
-
-~~~
-Usage: program <command>
-
-where <command> is one of:
-  version   prints the version
-  command1  some description about command1
-  command2  some description about command2
-
-available flags:
-  -exec-path="": a custom path to executable
-
-program <command> -h for subcommand help
-~~~
+This fork plays well with readline https://github.com/chzyer/readline. 
 
 ## Usage
 
 In order to start, go get this repository:
 
 ~~~ sh
-go get github.com/rakyll/command
+go get github.com/Drachenfels-GmbH/command
 ~~~
 
 This package allows you to use flags package as you used to do, and provides additional parsing for subcommands and subcommand flags.
 
 ~~~ go
-import "github.com/rakyll/command"
+import "github.com/Drachenfels-GmbH/command"
 
 // register any global flags
 var flagExecPath = flag.String("exec-path", "", "a custom path to executable")
@@ -50,26 +35,18 @@ func (cmd *VersionCommand) Run(args []string) {
 }
 
 // register version as a subcommand
-command.On("version", "prints the version", &VersionCommand{}, []string{"<required-arg>"})
+command.On("version", "prints the version", &VersionCommand{}, []string{"v"})
 command.On("command1", "some description about command1", ..., []string{})
 command.On("command2", "some description about command2", ..., []string{})
-command.Parse()
 // ...
-command.Run()
+command.Run("command1", "-v")
 ~~~
 
 The program above will handle the registered commands and invoke the matching command's `Run` or print subcommand help if `-h` is set.
 
-~~~
-$ program -exec-path=/home/user/bin/someexec version -v=true history
-~~~
-
-will output the version of the program in a verbose way requring an argument (history), and will set the exec path to the provided path. If arguments doesn't match any subcommand or illegal arguments are provided, it will print the usage guide.
-
-
-## License
-
 Copyright 2013 Google Inc. All Rights Reserved.
+
+Modifications Copyright 2016 Drachenfels GmbH. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
