@@ -18,109 +18,68 @@
 package command
 
 import (
+	"errors"
 	"flag"
 	"fmt"
-	"os"
-	"strings"
-	"errors"
 )
 
 // A map of all of the registered sub-commands.
 var Cmds map[string]*CmdCont = make(map[string]*CmdCont)
 
-// Matching subcommand.
-var matchingCmd *CmdCont
-
-// Arguments to call subcommand's runnable.
-var args []string
-
-// Flag to determine whether help is
-// asked for subcommand or not
-var flagHelp *bool
+var (
+	ErrUsage = errors.New("Invalid usage.")
+	ErrExist = errors.New("Command does not exist.")
+)
 
 // Cmd represents a sub command, allowing to define subcommand
 // flags and runnable to run once arguments match the subcommand
 // requirements.
 type Cmd interface {
+	// Callback used to register flags for the subcommand
 	Flags(*flag.FlagSet)
 	Run(args []string) error
 }
 
-// A func that implements the Cmd interface
+// A func that implements the Cmd interface.
+// For registering simple commands without flags.
 type CmdFunc func(args []string) error
 
 func (s CmdFunc) Flags(fs *flag.FlagSet) {
 }
 
 func (s CmdFunc) Run(args []string) error {
-	  return s(args)
-	}
+	return s(args)
+}
 
 type CmdCont struct {
 	Cmd
 	Name          string
 	Desc          string
 	RequiredFlags []string
+	Flags         *flag.FlagSet
 }
-
-var Args []string
 
 func init() {
-	Args = os.Args[:]
+	// parse global flags
+	flag.Parse()
 }
 
-// Registers a Cmd for the provided sub-command Name. E.g. Name is the
-// `status` in `git status`.
+// Registers a Cmd for the provided sub-command Name.
+// E.g. Name is the `status` in `git status`.
 func On(name, description string, command Cmd, requiredFlags []string) (c *CmdCont) {
 	c = &CmdCont{
 		Cmd:           command,
 		Name:          name,
 		Desc:          description,
 		RequiredFlags: requiredFlags,
+		Flags:         flag.NewFlagSet(name, flag.ContinueOnError),
 	}
+	// register subcommand flags
+	c.Cmd.Flags(c.Flags)
 	Cmds[name] = c
+
 	return
 }
-
-// Prints the usage.
-func Usage() {
-	program := Args[0]
-	if len(Cmds) == 0 {
-		// no subcommands
-		fmt.Fprintf(os.Stderr, "Usage of %s:\n", program)
-		flag.PrintDefaults()
-		return
-	}
-
-	fmt.Fprintf(os.Stderr, "Usage: %s <command>\n\n", program)
-	fmt.Fprintf(os.Stderr, "where <command> is one of:\n")
-	for name, cont := range Cmds {
-		fmt.Fprintf(os.Stderr, "  %-15s %s\n", name, cont.Desc)
-	}
-
-	if numOfGlobalFlags() > 0 {
-		fmt.Fprintf(os.Stderr, "\navailable flags:\n")
-		flag.PrintDefaults()
-	}
-	fmt.Fprintf(os.Stderr, "\n%s <command> -h for subcommand help\n", program)
-}
-
-func CmdUsage(cont *CmdCont) {
-	fmt.Fprintf(os.Stderr, "Usage of %s %s:\n", Args[0], cont.Name)
-	// should only output sub command flags, ignore h flag.
-	fs := flag.NewFlagSet(cont.Name, flag.ContinueOnError)
-	matchingCmd.Flags(fs)
-	fs.PrintDefaults()
-	if len(cont.RequiredFlags) > 0 {
-		fmt.Fprintf(os.Stderr, "\nrequired flags:\n")
-		fmt.Fprintf(os.Stderr, "  %s\n\n", strings.Join(cont.RequiredFlags, ", "))
-	}
-}
-
-var (
-	ErrUsage = errors.New("Invalid usage.")
-	ErrExist = errors.New("Command does not exist.")
-)
 
 // Parses the flags and leftover arguments to match them with a
 // sub-command. Evaluate all of the global flags and register
@@ -129,76 +88,42 @@ var (
 // A usage with flag defaults will be printed if provided arguments
 // don't match the configuration.
 // Global flags are accessible once Parse executes.
-func Parse() error {
-	flag.Parse()
+func Run(args ...string) error {
 	// if there are no subcommands registered,
 	// return immediately
-	if len(Cmds) < 1 {
+	if len(Cmds) < 1 || len(args) < 1 {
 		return ErrUsage
 	}
-
-	flag.Usage = Usage
-	if flag.NArg() < 1 {
-		flag.Usage()
-		return ErrUsage
-	}
-
-	name := flag.Arg(0)
-	if cont, ok := Cmds[name]; ok {
-		fs := flag.NewFlagSet(name, flag.ContinueOnError)
-		cont.Flags(fs)
-		flagHelp = fs.Bool("h", false, "")
-		err := fs.Parse(flag.Args()[1:])
-		if err != nil {
-			return err
+	// first argument is the subcommand
+	if cont, ok := Cmds[args[0]]; ok {
+		if len(args) > 1 {
+			err := cont.Flags.Parse(args[1:])
+			if err != nil {
+				return err
+			}
 		}
-		args = fs.Args()
-		matchingCmd = cont
 
-		// Check for required flags.
-		flagMap := make(map[string]bool)
+		// check for required / mandatory flags.
+		missingFlags := make(map[string]bool)
 		for _, flagName := range cont.RequiredFlags {
-			flagMap[flagName] = true
+			missingFlags[flagName] = true
 		}
-		fs.Visit(func(f *flag.Flag) {
-			delete(flagMap, f.Name)
+		cont.Flags.Visit(func(f *flag.Flag) {
+			delete(missingFlags, f.Name)
 		})
-		if len(flagMap) > 0 {
-			CmdUsage(matchingCmd)
-			return ErrUsage
+
+		if len(missingFlags) > 0 {
+			cont.Flags.PrintDefaults()
+			keys := make([]string, 0, len(missingFlags))
+			for k := range missingFlags {
+				keys = append(keys, k)
+			}
+			return fmt.Errorf("Required flags not set: %q\n", keys)
 		}
+		cont.Run(cont.Flags.Args())
 	} else {
-		flag.Usage()
+		flag.PrintDefaults()
+		return fmt.Errorf("Subcommand %q not available.", args[0])
 	}
 	return nil
-}
-
-// Runs the subcommand's runnable. If there is no subcommand
-// registered, it silently returns.
-func Run() error {
-	if matchingCmd != nil {
-		if *flagHelp {
-			CmdUsage(matchingCmd)
-		}
-		return matchingCmd.Run(args)
-	} else {
-		return ErrExist
-	}
-}
-
-// Parses flags and run's matching subcommand's runnable.
-func ParseAndRun() error {
-	err := Parse()
-	if err != nil {
-		return err
-	}
-	return Run()
-}
-
-// Returns the total number of globally registered flags.
-func numOfGlobalFlags() (count int) {
-	flag.VisitAll(func(flag *flag.Flag) {
-		count++
-	})
-	return
 }
