@@ -32,7 +32,7 @@ func TestInvalidParams(t *testing.T) {
 
 func TestCommandFunc(t *testing.T) {
 	var val string
-	On(
+	Add(
 		"hello",
 		"simple testing function",
 		CmdFunc(func(args []string) error {
@@ -40,10 +40,9 @@ func TestCommandFunc(t *testing.T) {
 			return nil
 
 		}),
-		[]string{},
 	)
 
-	err := Run("hello", "world")
+	_, err := Run("hello", "world")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}

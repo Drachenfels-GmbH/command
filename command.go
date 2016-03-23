@@ -25,11 +25,19 @@ import (
 )
 
 // A map of all of the registered sub-commands.
-var Cmds map[string]*CmdCont = make(map[string]*CmdCont)
+type Path struct {
+	entries map[string]*CmdCont
+}
+
+func NewPath() *Path {
+	return &Path{
+		entries: make(map[string]*CmdCont),
+	}
+}
 
 var (
-	ErrUsage = errors.New("Invalid usage.")
-	ErrExist = errors.New("Command does not exist.")
+	ErrCmdUsage  = errors.New("Invalid command usage.")
+	ErrNoSuchCmd = errors.New("No such command.")
 )
 
 // Cmd represents a sub command, allowing to define subcommand
@@ -38,7 +46,7 @@ var (
 type Cmd interface {
 	// Callback used to register flags for the subcommand
 	Flags(*flag.FlagSet)
-	Run(args []string) error
+	Run(args ...string) error
 }
 
 // A func that implements the Cmd interface.
@@ -48,7 +56,7 @@ type CmdFunc func(args []string) error
 func (s CmdFunc) Flags(fs *flag.FlagSet) {
 }
 
-func (s CmdFunc) Run(args []string) error {
+func (s CmdFunc) Run(args ...string) error {
 	return s(args)
 }
 
@@ -60,15 +68,10 @@ type CmdCont struct {
 	Flags         *flag.FlagSet
 }
 
-func init() {
-	// parse global flags
-	flag.Parse()
-}
-
 // Registers a Cmd for the provided sub-command Name.
 // E.g. Name is the `status` in `git status`.
-func On(name, description string, command Cmd, requiredFlags []string) (c *CmdCont) {
-	c = &CmdCont{
+func (p *Path) Add(name, description string, command Cmd, requiredFlags ...string) *CmdCont {
+	c := &CmdCont{
 		Cmd:           command,
 		Name:          name,
 		Desc:          description,
@@ -77,9 +80,9 @@ func On(name, description string, command Cmd, requiredFlags []string) (c *CmdCo
 	}
 	// register subcommand flags
 	c.Cmd.Flags(c.Flags)
-	Cmds[name] = c
-
-	return
+	// TODO warn before overwriting an existing command ?
+	p.entries[name] = c
+	return c
 }
 
 // Parses the flags and leftover arguments to match them with a
@@ -89,18 +92,18 @@ func On(name, description string, command Cmd, requiredFlags []string) (c *CmdCo
 // A usage with flag defaults will be printed if provided arguments
 // don't match the configuration.
 // Global flags are accessible once Parse executes.
-func Run(args ...string) error {
+func (p *Path) Run(args ...string) (*CmdCont, error) {
 	// if there are no subcommands registered,
 	// return immediately
-	if len(Cmds) < 1 || len(args) < 1 {
-		return ErrUsage
+	if len(p.entries) < 1 || len(args) < 1 {
+		return nil, ErrCmdUsage
 	}
 	// first argument is the subcommand
-	if cont, ok := Cmds[args[0]]; ok {
+	if cont, ok := p.entries[args[0]]; ok {
 		if len(args) > 1 {
 			err := cont.Flags.Parse(args[1:])
 			if err != nil {
-				return err
+				return cont, err
 			}
 		}
 
@@ -114,17 +117,34 @@ func Run(args ...string) error {
 		})
 
 		if len(missingFlags) > 0 {
-			cont.Flags.PrintDefaults()
 			keys := make([]string, 0, len(missingFlags))
 			for k := range missingFlags {
 				keys = append(keys, k)
 			}
-			return fmt.Errorf("Required flags not set: %q\n", keys)
+			return cont, fmt.Errorf("Required flags not set: %q\n", keys)
 		}
-		cont.Run(cont.Flags.Args())
-	} else {
-		flag.PrintDefaults()
-		return fmt.Errorf("Subcommand %q not available.", args[0])
+		return cont, cont.Run(cont.Flags.Args()...)
 	}
-	return nil
+	return nil, ErrNoSuchCmd
+}
+
+func (p *Path) PrintAvailableCommands() {
+	fmt.Println("Available commands:")
+	for _, c := range p.entries {
+		fmt.Printf("\t%s\t%s\n", c.Name, c.Desc)
+	}
+}
+
+var globalPath = NewPath()
+
+func Add(name, description string, command Cmd, requiredFlags ...string) *CmdCont {
+	return globalPath.Add(name, description, command, requiredFlags...)
+}
+
+func PrintAvailableCommands() {
+	globalPath.PrintAvailableCommands()
+}
+
+func Run(args ...string) (*CmdCont, error) {
+	return globalPath.Run(args...)
 }
